@@ -19,42 +19,34 @@ def prediction_layer(x):
     # x.shape = (?,6040,5)
     x_cumsum = K.cumsum(x, axis=2)
     # x_cumsum.shape = (?,6040,5)
-
     output = K.softmax(x_cumsum)
     # output = (?,6040,5)
     return output
 
 
 def prediction_output_shape(input_shape):
-
     return input_shape
 
 
 def d_layer(x):
-
     return K.sum(x, axis=1)
 
 
 def d_output_shape(input_shape):
-
     return (input_shape[0], )
 
 
 def D_layer(x):
-
     return K.sum(x, axis=1)
 
 
 def D_output_shape(input_shape):
-
     return (input_shape[0], )
 
 
 def rating_cost_lambda_func(args):
     alpha = 1.
     std = 0.01
-    """
-	"""
     pred_score, true_ratings, input_masks, output_masks, D, d = args
     pred_score_cum = K.cumsum(pred_score, axis=2)
 
@@ -81,7 +73,6 @@ def rating_cost_lambda_func(args):
 
 class RMSE_eval(Callback):
     def __init__(self, data_set, new_items, training_set):
-
         self.data_set = data_set
         self.rmses = []
         self.rate_score = np.array([1, 2, 3, 4, 5], np.float32)
@@ -134,6 +125,7 @@ class RMSE_eval(Callback):
 
 
 if __name__ == '__main__':
+
     batch_size = 64
     num_users = 6040
     num_items = 3706
@@ -191,7 +183,6 @@ if __name__ == '__main__':
         out_r = batch[0]['output_ratings']
         inp_m = batch[0]['input_masks']
         out_m = batch[0]['output_masks']
-
         rating_freq += inp_r.sum(axis=0)
 
     log_rating_freq = np.log(rating_freq + 1e-8)
@@ -206,6 +197,10 @@ if __name__ == '__main__':
         shape=(input_dim0, input_dim1), name='output_ratings')
     input_masks = Input(shape=(input_dim0, ), name='input_masks')
     output_masks = Input(shape=(input_dim0, ), name='output_masks')
+
+    # from keras import backend as K
+    # print(K.tensorflow_backend._get_available_gpus())
+    # input('Enter >>')
 
     nade_layer = Dropout(0.0)(input_layer)
     nade_layer = NADE(
