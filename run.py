@@ -71,7 +71,7 @@ def rating_cost_lambda_func(args):
     return cost
 
 
-class RMSE_eval(Callback):
+class EvaluationCallback(Callback):
     def __init__(self, data_set, new_items, training_set):
         self.data_set = data_set
         self.rmses = []
@@ -240,9 +240,9 @@ def _train(args):
     cf_nade_model.compile(
         loss={'nade_loss': lambda y_true, y_pred: y_pred}, optimizer=adam)
 
-    train_rmse_callback = RMSE_eval(
+    train_evaluation_callback = EvaluationCallback(
         data_set=train_set, new_items=new_items, training_set=True)
-    val_rmse_callback = RMSE_eval(
+    valid_evaluation_callback = EvaluationCallback(
         data_set=val_set, new_items=new_items, training_set=False)
 
     print('Training...')
@@ -253,7 +253,10 @@ def _train(args):
         validation_data=val_set.generate(),
         validation_steps=(val_set.get_corpus_size() // batch_size),
         shuffle=True,
-        callbacks=[train_set, val_set, train_rmse_callback, val_rmse_callback],
+        callbacks=[
+            train_set, val_set, train_evaluation_callback,
+            valid_evaluation_callback
+        ],
         verbose=1)
 
     print('Testing...')
