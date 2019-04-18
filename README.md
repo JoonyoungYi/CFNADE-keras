@@ -1,6 +1,7 @@
 # CFNADE-keras
 
 * Keras implementation of CF-NADE.
+* Only works on Movielens 1M data.
 
 ## How to run
 
