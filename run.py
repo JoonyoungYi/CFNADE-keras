@@ -124,7 +124,7 @@ class RMSE_eval(Callback):
         self.rmses.append(score)
 
 
-def main(args):
+def _train(args):
     if K.backend() != 'tensorflow':
         print("This repository only support tensorflow backend.")
         raise NotImplementedError()
@@ -135,7 +135,6 @@ def main(args):
     data_sample = 1.0
     input_dim0 = 6040
     input_dim1 = 5
-    hidden_dim = 250
     std = 0.0
     alpha = 1.0
 
@@ -208,13 +207,14 @@ def main(args):
     # nade_layer = Dropout(0.0)(input_layer)
     nade_layer = input_layer
     nade_layer = NADE(
-        hidden_dim=hidden_dim,
+        hidden_dim=args.hidden_dim,
         activation='tanh',
         bias=True,
         W_regularizer=keras.regularizers.l2(0.02),
         V_regularizer=keras.regularizers.l2(0.02),
         b_regularizer=keras.regularizers.l2(0.02),
-        c_regularizer=keras.regularizers.l2(0.02))(nade_layer)
+        c_regularizer=keras.regularizers.l2(0.02),
+        args=args)(nade_layer)
 
     predicted_ratings = Lambda(
         prediction_layer,
@@ -235,7 +235,7 @@ def main(args):
         outputs=[loss_out, predicted_ratings])
     cf_nade_model.summary()
 
-    adam = Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-8)
+    adam = Adam(lr=args.learning_rate, beta_1=0.9, beta_2=0.999, epsilon=1e-8)
 
     cf_nade_model.compile(
         loss={'nade_loss': lambda y_true, y_pred: y_pred}, optimizer=adam)
@@ -294,5 +294,67 @@ def main(args):
     print("test set RMSE is %f" % (rmse))
 
 
+def main():
+    import argparse
+
+    parser = argparse.ArgumentParser(description='CFNADE-keras')
+    parser.add_argument(
+        '--hidden_dim',
+        type=int,
+        default=500,
+        help='Iteration unit for validation')
+    # keras-1 에서는 500짜리 keras-2에서는 250짜리 실험 중...
+    parser.add_argument(
+        '--normalize_1st_layer',
+        type=bool,
+        default=False,
+        help='normalize 1st layer')
+    parser.add_argument(
+        '--learning_rate',
+        type=float,
+        default=1e-3,
+        help='learning rate for optimizer.')
+
+    # parser.add_argument(
+    #     '--iter_validation',
+    #     type=int,
+    #     default=10,
+    #     help='Iteration unit for validation')
+    # parser.add_argument(
+    #     '--max_iter', type=int, default=10000000, help='Max Iteration')
+    # parser.add_argument(
+    #     '--n_hidden_unit',
+    #     type=int,
+    #     default=500,
+    #     help='The number of hidden unit')
+    # parser.add_argument(
+    #     '--parameter_sharing',
+    #     type=bool,
+    #     default=False,
+    #     help='parameter sharing')
+    # parser.add_argument(
+    #     '--lambda_1',
+    #     type=float,
+    #     default=0.015,
+    #     help='lambda for weight decay.')
+    # parser.add_argument(
+    #     '--lambda_2',
+    #     type=float,
+    #     default=0.015,
+    #     help='lambda for weight decay.')
+    # parser.add_argument(
+    #     '--dropout_rate', type=float, default=0., help='dropout_rate')
+    # parser.add_argument(
+    #     '--iter_early_stop',
+    #     type=int,
+    #     default=10000,
+    #     help='the number of iteration for early stop.')
+    # parser.add_argument(
+    #     '--data_seed', type=int, default=1, help='the seed for dataset')
+
+    args = parser.parse_args()
+    _train(args)
+
+
 if __name__ == '__main__':
-    main(args)
+    main()

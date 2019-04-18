@@ -26,6 +26,7 @@ class NADE(Layer):
                  b_regularizer=None,
                  c_regularizer=None,
                  bias=False,
+                 args=None,
                  **kwargs):
 
         self.init = initializers.get('uniform')
@@ -38,6 +39,8 @@ class NADE(Layer):
         self.V_regularizer = regularizers.get(V_regularizer)
         self.b_regularizer = regularizers.get(b_regularizer)
         self.c_regularizer = regularizers.get(c_regularizer)
+
+        self.args = args
 
         super(NADE, self).__init__(**kwargs)
 
@@ -73,28 +76,20 @@ class NADE(Layer):
         super(NADE, self).build(input_shape)
 
     def call(self, original_x):
-        # print(x)
+        args = self.args
+
         x = K.cumsum(original_x[:, :, ::-1], axis=2)[:, :, ::-1]
-        # print(x)
-        # print(x)
-        # input('')
         # x.shape = (?,6040,5)
         # W.shape = (6040, 5, 500)
         # c.shape = (500,)
         output_ = tf.tensordot(x, self.W, axes=[[1, 2], [0, 1]])
-        NORMALIZE = True
-        if NORMALIZE:
-            # print(output_)
-            # print(original_x)
-
+        if args.normalize_1st_layer:
             output_ /= tf.matmul(
                 tf.maximum(
                     tf.reshape(
                         tf.reduce_sum(
                             tf.reduce_sum(original_x, axis=2), axis=1),
                         [-1, 1]), 1), tf.ones([1, output_.shape[1]]))
-            # print(output_)
-            # input('')
 
         if self.bias:
             output_ = output_ + self.c
