@@ -26,6 +26,7 @@ python data_prep.py
 python run.py
 ```
 * I setup my environment by this [docker image](https://hub.docker.com/r/jihong/keras-gpu/).
+  * TODO: fix requirements.txt
 
 
 ## Performance

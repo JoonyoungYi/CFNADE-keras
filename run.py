@@ -75,27 +75,26 @@ class EvaluationCallback(Callback):
     def __init__(self, data_set, new_items, training_set):
         self.data_set = data_set
         self.rmses = []
-        self.rate_score = np.array([1, 2, 3, 4, 5], np.float32)
         self.new_items = new_items
         self.training_set = training_set
 
-    def eval_rmse(self):
+    def calculate_rmse(data_set, model, new_items):
+        rate_score = np.array([1, 2, 3, 4, 5], np.float32)
+
         squared_error = []
         n_samples = []
-        for i, batch in enumerate(self.data_set.generate(max_iters=1)):
+        for i, batch in enumerate(data_set.generate(max_iters=1)):
             inp_r = batch[0]['input_ratings']
             out_r = batch[0]['output_ratings']
             inp_m = batch[0]['input_masks']
             out_m = batch[0]['output_masks']
 
-            pred_batch = self.model.predict(batch[0])[1]
+            pred_batch = model.predict(batch[0])[1]
             true_r = out_r.argmax(axis=2) + 1
-            pred_r = (
-                pred_batch * self.rate_score[np.newaxis, np.newaxis, :]).sum(
-                    axis=2)
+            pred_r = (pred_batch * rate_score[np.newaxis, np.newaxis, :]).sum(
+                axis=2)
 
-            pred_r[:, self.new_items] = 3
-
+            pred_r[:, new_items] = 3
             mask = out_r.sum(axis=2)
             # '''
             # if i == 0:
@@ -110,9 +109,11 @@ class EvaluationCallback(Callback):
 
         total_squared_error = np.array(squared_error).sum()
         total_n_samples = np.array(n_samples).sum()
-        rmse = np.sqrt(total_squared_error / (total_n_samples * 1.0 + 1e-8))
-
+        rmse = np.sqrt(total_squared_error / (total_n_samples * 1.0))
         return rmse
+
+    def eval_rmse(self):
+        return self.calculate_rmse(self.data_set, self.model, self.new_items)
 
     def on_epoch_end(self, epoch, logs={}):
         score = self.eval_rmse()
@@ -260,40 +261,38 @@ def _train(args):
         verbose=1)
 
     print('Testing...')
-    rmses = []
-    rate_score = np.array([1, 2, 3, 4, 5], np.float32)
-    new_items = new_items
-
-    squared_error = []
-    n_samples = []
-    for i, batch in enumerate(test_set.generate(max_iters=1)):
-        inp_r = batch[0]['input_ratings']
-        out_r = batch[0]['output_ratings']
-        inp_m = batch[0]['input_masks']
-        out_m = batch[0]['output_masks']
-
-        pred_batch = cf_nade_model.predict(batch[0])[1]
-        true_r = out_r.argmax(axis=2) + 1
-        pred_r = (pred_batch * rate_score[np.newaxis, np.newaxis, :]).sum(
-            axis=2)
-
-        pred_r[:, new_items] = 3
-
-        mask = out_r.sum(axis=2)
-        # '''
-        # if i == 0:
-        # 	print [true_r[0][j] for j in np.nonzero(true_r[0]* mask[0])[0]]
-        # 	print [pred_r[0][j] for j in np.nonzero(pred_r[0]* mask[0])[0]]
-        # '''
-
-        se = np.sum(np.square(true_r - pred_r) * mask)
-        n = np.sum(mask)
-        squared_error.append(se)
-        n_samples.append(n)
-
-    total_squared_error = np.array(squared_error).sum()
-    total_n_samples = np.array(n_samples).sum()
-    rmse = np.sqrt(total_squared_error / (total_n_samples * 1.0 + 1e-8))
+    rmse = EvaluationCallback.calculate_rmse(test_set, cf_nade_model,
+                                             new_items)
+    # squared_error = []
+    # n_samples = []
+    # for i, batch in enumerate(test_set.generate(max_iters=1)):
+    #     inp_r = batch[0]['input_ratings']
+    #     out_r = batch[0]['output_ratings']
+    #     inp_m = batch[0]['input_masks']
+    #     out_m = batch[0]['output_masks']
+    #
+    #     pred_batch = cf_nade_model.predict(batch[0])[1]
+    #     true_r = out_r.argmax(axis=2) + 1
+    #     pred_r = (pred_batch * rate_score[np.newaxis, np.newaxis, :]).sum(
+    #         axis=2)
+    #
+    #     pred_r[:, new_items] = 3
+    #
+    #     mask = out_r.sum(axis=2)
+    #     # '''
+    #     # if i == 0:
+    #     # 	print [true_r[0][j] for j in np.nonzero(true_r[0]* mask[0])[0]]
+    #     # 	print [pred_r[0][j] for j in np.nonzero(pred_r[0]* mask[0])[0]]
+    #     # '''
+    #
+    #     se = np.sum(np.square(true_r - pred_r) * mask)
+    #     n = np.sum(mask)
+    #     squared_error.append(se)
+    #     n_samples.append(n)
+    #
+    # total_squared_error = np.array(squared_error).sum()
+    # total_n_samples = np.array(n_samples).sum()
+    # rmse = np.sqrt(total_squared_error / (total_n_samples * 1.0 + 1e-8))
     print("test set RMSE is %f" % (rmse))
 
 
@@ -305,13 +304,12 @@ def main():
         '--hidden_dim',
         type=int,
         default=500,
-        help='Iteration unit for validation')
-    # keras-1 에서는 500짜리 keras-2에서는 250짜리 실험 중...
+        help='hidden dimension for NADE')
     parser.add_argument(
         '--normalize_1st_layer',
         type=bool,
         default=False,
-        help='normalize 1st layer')
+        help='whether normalize 1st layer')
     parser.add_argument(
         '--learning_rate',
         type=float,
