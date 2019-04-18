@@ -124,7 +124,10 @@ class RMSE_eval(Callback):
         self.rmses.append(score)
 
 
-if __name__ == '__main__':
+def main(args):
+    if K.backend() != 'tensorflow':
+        print("This repository only support tensorflow backend.")
+        raise NotImplementedError()
 
     batch_size = 64
     num_users = 6040
@@ -135,8 +138,8 @@ if __name__ == '__main__':
     hidden_dim = 250
     std = 0.0
     alpha = 1.0
-    print('Loading data...')
 
+    print('Loading data...')
     train_file_list = sorted(
         glob.glob(os.path.join(('data/train_set'), 'part*')))
     val_file_list = sorted(glob.glob(os.path.join(('data/val_set/'), 'part*')))
@@ -202,7 +205,8 @@ if __name__ == '__main__':
     # print(K.tensorflow_backend._get_available_gpus())
     # input('Enter >>')
 
-    nade_layer = Dropout(0.0)(input_layer)
+    # nade_layer = Dropout(0.0)(input_layer)
+    nade_layer = input_layer
     nade_layer = NADE(
         hidden_dim=hidden_dim,
         activation='tanh',
@@ -288,3 +292,7 @@ if __name__ == '__main__':
     total_n_samples = np.array(n_samples).sum()
     rmse = np.sqrt(total_squared_error / (total_n_samples * 1.0 + 1e-8))
     print("test set RMSE is %f" % (rmse))
+
+
+if __name__ == '__main__':
+    main(args)

@@ -1,24 +1,20 @@
+import tensorflow as tf
 from keras.engine import Layer, InputSpec
 from keras import backend as K
-import tensorflow as tf
 from keras import initializers
 from keras import regularizers
 from keras import constraints
 
-
-def dot_product(x, kernel):
-    """
-    Wrapper for dot product operation, in order to be compatible with both
-    Theano and Tensorflow
-    Args:
-        x (): input
-        kernel (): weights
-    Returns:
-    """
-    if K.backend() == 'tensorflow':
-        return K.squeeze(K.dot(x, K.expand_dims(kernel)), axis=-1)
-    else:
-        return K.dot(x, kernel)
+# def dot_product(x, kernel):
+#     """
+#     Wrapper for dot product operation, in order to be compatible with both
+#     Theano and Tensorflow
+#     Args:
+#         x (): input
+#         kernel (): weights
+#     Returns:
+#     """
+#     return K.squeeze(K.dot(x, K.expand_dims(kernel)), axis=-1)
 
 
 class NADE(Layer):
@@ -76,19 +72,33 @@ class NADE(Layer):
 
         super(NADE, self).build(input_shape)
 
-    def call(self, x):
+    def call(self, original_x):
         # print(x)
-        x = K.cumsum(x[:, :, ::-1], axis=2)[:, :, ::-1]
+        x = K.cumsum(original_x[:, :, ::-1], axis=2)[:, :, ::-1]
         # print(x)
         # print(x)
         # input('')
         # x.shape = (?,6040,5)
         # W.shape = (6040, 5, 500)
         # c.shape = (500,)
+        output_ = tf.tensordot(x, self.W, axes=[[1, 2], [0, 1]])
+        NORMALIZE = True
+        if NORMALIZE:
+            # print(output_)
+            # print(original_x)
+
+            output_ /= tf.matmul(
+                tf.maximum(
+                    tf.reshape(
+                        tf.reduce_sum(
+                            tf.reduce_sum(original_x, axis=2), axis=1),
+                        [-1, 1]), 1), tf.ones([1, output_.shape[1]]))
+            # print(output_)
+            # input('')
+
         if self.bias:
-            output_ = tf.tensordot(x, self.W, axes=[[1, 2], [0, 1]]) + self.c
-        else:
-            output_ = tf.tensordot(x, self.W, axes=[[1, 2], [0, 1]])
+            output_ = output_ + self.c
+
         h_out = tf.reshape(output_, [-1, self.hidden_dim])
         #tf.cast(indices, tf.float32)
         # output_.shape = (?,500)
