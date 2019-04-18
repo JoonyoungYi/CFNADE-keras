@@ -19,7 +19,7 @@ def dot_product(x, kernel):
         return K.squeeze(K.dot(x, K.expand_dims(kernel)), axis=-1)
     else:
         return K.dot(x, kernel)
-    
+
 
 class NADE(Layer):
     """
@@ -37,7 +37,7 @@ class NADE(Layer):
 
         self.init = initializers.get('uniform')
 
-    
+
         self.bias = bias
         self.activation = activation
         self.hidden_dim = hidden_dim

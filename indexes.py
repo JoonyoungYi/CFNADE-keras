@@ -48,7 +48,7 @@ def create_doc_index(ui_mat_rdd,
 	export=False):
 	"""
 	Indexes the docs and saves the index in a dictionary. The indexes are
-	then saved to disk. The indexing allows us to use internal integer IDs 
+	then saved to disk. The indexing allows us to use internal integer IDs
 	for the users and documents instead of real IDs. The internal IDs are used
 	to index the different model matrices efficiently.
 	Args:
@@ -132,5 +132,5 @@ def map_recommendations(recommendations,
 		recommendations = [(inv_doc_index[rec[0]],inv_doc_index[rec[1]],rec[2]) for rec in recommendations]
 	else:
 		recommendations = [(inv_user_index[rec[0]],inv_doc_index[rec[1]],rec[2]) for rec in recommendations]
-	
+
 	return recommendations
