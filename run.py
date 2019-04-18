@@ -250,7 +250,7 @@ def _train(args):
     cf_nade_model.fit_generator(
         train_set.generate(),
         steps_per_epoch=(train_set.get_corpus_size() // batch_size),
-        epochs=30,
+        epochs=args.n_epoch,
         validation_data=val_set.generate(),
         validation_steps=(val_set.get_corpus_size() // batch_size),
         shuffle=True,
@@ -285,6 +285,8 @@ def main():
         type=float,
         default=1e-3,
         help='learning rate for optimizer.')
+    parser.add_argument(
+        '--n_epoch', type=int, default=30, help='The number of epoch')
 
     # parser.add_argument(
     #     '--iter_validation',
