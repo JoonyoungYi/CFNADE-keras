@@ -71,6 +71,41 @@ def rating_cost_lambda_func(args):
     return cost
 
 
+def _calculate_rmse(data_set, model, new_items):
+    rate_score = np.array([1, 2, 3, 4, 5], np.float32)
+
+    squared_error = []
+    n_samples = []
+    for i, batch in enumerate(data_set.generate(max_iters=1)):
+        inp_r = batch[0]['input_ratings']
+        out_r = batch[0]['output_ratings']
+        inp_m = batch[0]['input_masks']
+        out_m = batch[0]['output_masks']
+
+        pred_batch = model.predict(batch[0])[1]
+        true_r = out_r.argmax(axis=2) + 1
+        pred_r = (pred_batch * rate_score[np.newaxis, np.newaxis, :]).sum(
+            axis=2)
+
+        pred_r[:, new_items] = 3
+        mask = out_r.sum(axis=2)
+        # '''
+        # if i == 0:
+        # 	print [true_r[0][j] for j in np.nonzero(true_r[0]* mask[0])[0]]
+        # 	print [pred_r[0][j] for j in np.nonzero(pred_r[0]* mask[0])[0]]
+        # '''
+
+        se = np.sum(np.square(true_r - pred_r) * mask)
+        n = np.sum(mask)
+        squared_error.append(se)
+        n_samples.append(n)
+
+    total_squared_error = np.array(squared_error).sum()
+    total_n_samples = np.array(n_samples).sum()
+    rmse = np.sqrt(total_squared_error / (total_n_samples * 1.0))
+    return rmse
+
+
 class EvaluationCallback(Callback):
     def __init__(self, data_set, new_items, training_set):
         self.data_set = data_set
@@ -78,42 +113,8 @@ class EvaluationCallback(Callback):
         self.new_items = new_items
         self.training_set = training_set
 
-    def calculate_rmse(self, data_set, model, new_items):
-        rate_score = np.array([1, 2, 3, 4, 5], np.float32)
-
-        squared_error = []
-        n_samples = []
-        for i, batch in enumerate(data_set.generate(max_iters=1)):
-            inp_r = batch[0]['input_ratings']
-            out_r = batch[0]['output_ratings']
-            inp_m = batch[0]['input_masks']
-            out_m = batch[0]['output_masks']
-
-            pred_batch = model.predict(batch[0])[1]
-            true_r = out_r.argmax(axis=2) + 1
-            pred_r = (pred_batch * rate_score[np.newaxis, np.newaxis, :]).sum(
-                axis=2)
-
-            pred_r[:, new_items] = 3
-            mask = out_r.sum(axis=2)
-            # '''
-            # if i == 0:
-            # 	print [true_r[0][j] for j in np.nonzero(true_r[0]* mask[0])[0]]
-            # 	print [pred_r[0][j] for j in np.nonzero(pred_r[0]* mask[0])[0]]
-            # '''
-
-            se = np.sum(np.square(true_r - pred_r) * mask)
-            n = np.sum(mask)
-            squared_error.append(se)
-            n_samples.append(n)
-
-        total_squared_error = np.array(squared_error).sum()
-        total_n_samples = np.array(n_samples).sum()
-        rmse = np.sqrt(total_squared_error / (total_n_samples * 1.0))
-        return rmse
-
     def eval_rmse(self):
-        return self.calculate_rmse(self.data_set, self.model, self.new_items)
+        return _calculate_rmse(self.data_set, self.model, self.new_items)
 
     def on_epoch_end(self, epoch, logs={}):
         score = self.eval_rmse()
@@ -261,8 +262,7 @@ def _train(args):
         verbose=1)
 
     print('Testing...')
-    rmse = EvaluationCallback.calculate_rmse(test_set, cf_nade_model,
-                                             new_items)
+    rmse = _calculate_rmse(test_set, cf_nade_model, new_items)
     print("test set RMSE is %f" % (rmse))
 
 
