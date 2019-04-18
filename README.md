@@ -4,8 +4,10 @@
 
 ## Requirements
 
-* `python3.5`.
-* See `requirements.txt`.
+* User `python3.5`.
+* `pip install -r requirements.txt`
+* `python data_prep.py`
+* `python test_module.py`
 
 
 ## History
