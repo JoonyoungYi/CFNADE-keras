@@ -19,42 +19,34 @@ def prediction_layer(x):
     # x.shape = (?,6040,5)
     x_cumsum = K.cumsum(x, axis=2)
     # x_cumsum.shape = (?,6040,5)
-
     output = K.softmax(x_cumsum)
     # output = (?,6040,5)
     return output
 
 
 def prediction_output_shape(input_shape):
-
     return input_shape
 
 
 def d_layer(x):
-
     return K.sum(x, axis=1)
 
 
 def d_output_shape(input_shape):
-
     return (input_shape[0], )
 
 
 def D_layer(x):
-
     return K.sum(x, axis=1)
 
 
 def D_output_shape(input_shape):
-
     return (input_shape[0], )
 
 
 def rating_cost_lambda_func(args):
     alpha = 1.
     std = 0.01
-    """
-	"""
     pred_score, true_ratings, input_masks, output_masks, D, d = args
     pred_score_cum = K.cumsum(pred_score, axis=2)
 
@@ -79,9 +71,8 @@ def rating_cost_lambda_func(args):
     return cost
 
 
-class RMSE_eval(Callback):
+class EvaluationCallback(Callback):
     def __init__(self, data_set, new_items, training_set):
-
         self.data_set = data_set
         self.rmses = []
         self.rate_score = np.array([1, 2, 3, 4, 5], np.float32)
@@ -133,18 +124,21 @@ class RMSE_eval(Callback):
         self.rmses.append(score)
 
 
-if __name__ == '__main__':
+def _train(args):
+    if K.backend() != 'tensorflow':
+        print("This repository only support tensorflow backend.")
+        raise NotImplementedError()
+
     batch_size = 64
     num_users = 6040
     num_items = 3706
     data_sample = 1.0
     input_dim0 = 6040
     input_dim1 = 5
-    hidden_dim = 250
     std = 0.0
     alpha = 1.0
-    print('Loading data...')
 
+    print('Loading data...')
     train_file_list = sorted(
         glob.glob(os.path.join(('data/train_set'), 'part*')))
     val_file_list = sorted(glob.glob(os.path.join(('data/val_set/'), 'part*')))
@@ -191,7 +185,6 @@ if __name__ == '__main__':
         out_r = batch[0]['output_ratings']
         inp_m = batch[0]['input_masks']
         out_m = batch[0]['output_masks']
-
         rating_freq += inp_r.sum(axis=0)
 
     log_rating_freq = np.log(rating_freq + 1e-8)
@@ -207,15 +200,21 @@ if __name__ == '__main__':
     input_masks = Input(shape=(input_dim0, ), name='input_masks')
     output_masks = Input(shape=(input_dim0, ), name='output_masks')
 
-    nade_layer = Dropout(0.0)(input_layer)
+    # from keras import backend as K
+    # print(K.tensorflow_backend._get_available_gpus())
+    # input('Enter >>')
+
+    # nade_layer = Dropout(0.0)(input_layer)
+    nade_layer = input_layer
     nade_layer = NADE(
-        hidden_dim=hidden_dim,
+        hidden_dim=args.hidden_dim,
         activation='tanh',
         bias=True,
         W_regularizer=keras.regularizers.l2(0.02),
         V_regularizer=keras.regularizers.l2(0.02),
         b_regularizer=keras.regularizers.l2(0.02),
-        c_regularizer=keras.regularizers.l2(0.02))(nade_layer)
+        c_regularizer=keras.regularizers.l2(0.02),
+        args=args)(nade_layer)
 
     predicted_ratings = Lambda(
         prediction_layer,
@@ -236,14 +235,14 @@ if __name__ == '__main__':
         outputs=[loss_out, predicted_ratings])
     cf_nade_model.summary()
 
-    adam = Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-8)
+    adam = Adam(lr=args.learning_rate, beta_1=0.9, beta_2=0.999, epsilon=1e-8)
 
     cf_nade_model.compile(
         loss={'nade_loss': lambda y_true, y_pred: y_pred}, optimizer=adam)
 
-    train_rmse_callback = RMSE_eval(
+    train_evaluation_callback = EvaluationCallback(
         data_set=train_set, new_items=new_items, training_set=True)
-    val_rmse_callback = RMSE_eval(
+    valid_evaluation_callback = EvaluationCallback(
         data_set=val_set, new_items=new_items, training_set=False)
 
     print('Training...')
@@ -254,7 +253,10 @@ if __name__ == '__main__':
         validation_data=val_set.generate(),
         validation_steps=(val_set.get_corpus_size() // batch_size),
         shuffle=True,
-        callbacks=[train_set, val_set, train_rmse_callback, val_rmse_callback],
+        callbacks=[
+            train_set, val_set, train_evaluation_callback,
+            valid_evaluation_callback
+        ],
         verbose=1)
 
     print('Testing...')
@@ -293,3 +295,69 @@ if __name__ == '__main__':
     total_n_samples = np.array(n_samples).sum()
     rmse = np.sqrt(total_squared_error / (total_n_samples * 1.0 + 1e-8))
     print("test set RMSE is %f" % (rmse))
+
+
+def main():
+    import argparse
+
+    parser = argparse.ArgumentParser(description='CFNADE-keras')
+    parser.add_argument(
+        '--hidden_dim',
+        type=int,
+        default=500,
+        help='Iteration unit for validation')
+    # keras-1 에서는 500짜리 keras-2에서는 250짜리 실험 중...
+    parser.add_argument(
+        '--normalize_1st_layer',
+        type=bool,
+        default=False,
+        help='normalize 1st layer')
+    parser.add_argument(
+        '--learning_rate',
+        type=float,
+        default=1e-3,
+        help='learning rate for optimizer.')
+
+    # parser.add_argument(
+    #     '--iter_validation',
+    #     type=int,
+    #     default=10,
+    #     help='Iteration unit for validation')
+    # parser.add_argument(
+    #     '--max_iter', type=int, default=10000000, help='Max Iteration')
+    # parser.add_argument(
+    #     '--n_hidden_unit',
+    #     type=int,
+    #     default=500,
+    #     help='The number of hidden unit')
+    # parser.add_argument(
+    #     '--parameter_sharing',
+    #     type=bool,
+    #     default=False,
+    #     help='parameter sharing')
+    # parser.add_argument(
+    #     '--lambda_1',
+    #     type=float,
+    #     default=0.015,
+    #     help='lambda for weight decay.')
+    # parser.add_argument(
+    #     '--lambda_2',
+    #     type=float,
+    #     default=0.015,
+    #     help='lambda for weight decay.')
+    # parser.add_argument(
+    #     '--dropout_rate', type=float, default=0., help='dropout_rate')
+    # parser.add_argument(
+    #     '--iter_early_stop',
+    #     type=int,
+    #     default=10000,
+    #     help='the number of iteration for early stop.')
+    # parser.add_argument(
+    #     '--data_seed', type=int, default=1, help='the seed for dataset')
+
+    args = parser.parse_args()
+    _train(args)
+
+
+if __name__ == '__main__':
+    main()
