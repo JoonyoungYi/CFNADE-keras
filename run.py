@@ -11,7 +11,7 @@ from keras.models import Model
 from keras.callbacks import Callback
 import keras.regularizers
 from keras.optimizers import Adam
-
+from keras.callbacks import EarlyStopping
 import tensorflow as tf
 
 
@@ -44,31 +44,53 @@ def D_output_shape(input_shape):
     return (input_shape[0], )
 
 
-def rating_cost_lambda_func(args):
-    alpha = 1.
-    std = 0.01
-    pred_score, true_ratings, input_masks, output_masks, D, d = args
-    pred_score_cum = K.cumsum(pred_score, axis=2)
+def _get_cost_func(args):
+    def _get_cost(i):
+        pred_score, true_ratings, input_masks, output_masks, D, d = i
+        # input_masks and output_masks are unused.
 
-    prob_item_ratings = K.softmax(pred_score_cum)
-    accu_prob_1N = K.cumsum(prob_item_ratings, axis=2)
-    accu_prob_N1 = K.cumsum(prob_item_ratings[:, :, ::-1], axis=2)[:, :, ::-1]
-    mask1N = K.cumsum(true_ratings[:, :, ::-1], axis=2)[:, :, ::-1]
-    maskN1 = K.cumsum(true_ratings, axis=2)
-    cost_ordinal_1N = -K.sum(
-        (K.log(prob_item_ratings) - K.log(accu_prob_1N)) * mask1N, axis=2)
-    cost_ordinal_N1 = -K.sum(
-        (K.log(prob_item_ratings) - K.log(accu_prob_N1)) * maskN1, axis=2)
-    cost_ordinal = cost_ordinal_1N + cost_ordinal_N1
-    nll_item_ratings = K.sum(
-        -(true_ratings * K.log(prob_item_ratings)), axis=2)
-    nll = std * K.sum(
-        nll_item_ratings, axis=1) * 1.0 * D / (D - d + 1e-6) + alpha * K.sum(
-            cost_ordinal, axis=1) * 1.0 * D / (D - d + 1e-6)
-    cost = K.mean(nll)
-    cost = K.expand_dims(cost, 0)
+        lambda_ordinal = args.lambda_ordinal
+        lambda_regular = 1.0 - lambda_ordinal
 
-    return cost
+        # cumulate and sum weights for parameter sharing.
+        pred_score_cum = K.cumsum(pred_score, axis=2)
+
+        # this is probability.
+        prob_item_ratings = K.softmax(pred_score_cum)
+
+        # calculate ordinal cost.
+        accu_prob_1N = K.cumsum(prob_item_ratings, axis=2)
+        accu_prob_N1 = K.cumsum(
+            prob_item_ratings[:, :, ::-1], axis=2)[:, :, ::-1]
+        mask1N = K.cumsum(true_ratings[:, :, ::-1], axis=2)[:, :, ::-1]
+        maskN1 = K.cumsum(true_ratings, axis=2)
+        cost_ordinal_1N = -K.sum(
+            (K.log(prob_item_ratings) - K.log(accu_prob_1N)) * mask1N, axis=2)
+        cost_ordinal_N1 = -K.sum(
+            (K.log(prob_item_ratings) - K.log(accu_prob_N1)) * maskN1, axis=2)
+        ord_costs = cost_ordinal_1N + cost_ordinal_N1
+
+        # calculate crossentropy_loss (reconstruction loss)
+        # The CFNADE paper denotes this term as reg_cost (regular cost)
+        reg_costs = K.sum(-(true_ratings * K.log(prob_item_ratings)), axis=2)
+
+        # hybrid_losses. mix two losses.
+        hyb_costs = lambda_regular * K.sum(
+            reg_costs, axis=1) + lambda_ordinal * K.sum(
+                ord_costs, axis=1)
+        # hyb_costs = hyb_costs * D / (D - d + 1e-6)
+        # O: 1, X;2
+
+        # print(hyb_costs)
+        cost = K.mean(hyb_costs)
+        # print(cost)
+
+        cost = K.expand_dims(cost, 0)
+        # print(cost)
+        # assert False
+        return cost
+
+    return _get_cost
 
 
 def _calculate_rmse(data_set, model, new_items):
@@ -137,8 +159,6 @@ def _train(args):
     data_sample = 1.0
     input_dim0 = 6040
     input_dim1 = 5
-    std = 0.0
-    alpha = 1.0
 
     print('Loading data...')
     train_file_list = sorted(
@@ -212,10 +232,10 @@ def _train(args):
         hidden_dim=args.hidden_dim,
         activation='tanh',
         bias=True,
-        W_regularizer=keras.regularizers.l2(0.02),
-        V_regularizer=keras.regularizers.l2(0.02),
-        b_regularizer=keras.regularizers.l2(0.02),
-        c_regularizer=keras.regularizers.l2(0.02),
+        W_regularizer=keras.regularizers.l2(args.lambda_w),
+        V_regularizer=keras.regularizers.l2(args.lambda_v),
+        b_regularizer=keras.regularizers.l2(args.lambda_b),
+        c_regularizer=keras.regularizers.l2(args.lambda_c),
         args=args)(nade_layer)
 
     predicted_ratings = Lambda(
@@ -223,13 +243,13 @@ def _train(args):
         output_shape=prediction_output_shape,
         name='predicted_ratings')(nade_layer)
 
+    # QUESTION: There is no data in input mask and output mask.
     d = Lambda(d_layer, output_shape=d_output_shape, name='d')(input_masks)
-
     sum_masks = add([input_masks, output_masks])
     D = Lambda(D_layer, output_shape=D_output_shape, name='D')(sum_masks)
 
     loss_out = Lambda(
-        rating_cost_lambda_func, output_shape=(1, ), name='nade_loss')(
+        _get_cost_func(args), output_shape=(1, ), name='nade_loss')(
             [nade_layer, output_ratings, input_masks, output_masks, D, d])
 
     cf_nade_model = Model(
@@ -248,6 +268,8 @@ def _train(args):
         data_set=val_set, new_items=new_items, training_set=False)
 
     print('Training...')
+    early_stopping = EarlyStopping(patience=args.iter_early_stop)
+
     cf_nade_model.fit_generator(
         train_set.generate(),
         steps_per_epoch=(train_set.get_corpus_size() // batch_size),
@@ -256,8 +278,11 @@ def _train(args):
         validation_steps=(val_set.get_corpus_size() // batch_size),
         shuffle=True,
         callbacks=[
-            train_set, val_set, train_evaluation_callback,
-            valid_evaluation_callback
+            train_set,
+            val_set,
+            train_evaluation_callback,
+            valid_evaluation_callback,
+            early_stopping,
         ],
         verbose=1)
 
@@ -281,12 +306,38 @@ def main():
         default=False,
         help='whether normalize 1st layer')
     parser.add_argument(
+        '--lambda_w', type=float, default=0.015, help='The lambda for W')
+    parser.add_argument(
+        '--lambda_v', type=float, default=0.015, help='The lambda for V')
+    parser.add_argument(
+        '--lambda_b', type=float, default=0.0, help='The lambda for b')
+    parser.add_argument(
+        '--lambda_c', type=float, default=0.0, help='The lambda for c')
+
+    def _restricted_float(x):
+        x = float(x)
+        if x < 0.0 or x > 1.0:
+            raise argparse.ArgumentTypeError("%r not in range [0.0, 1.0]" %
+                                             (x, ))
+        return x
+
+    parser.add_argument(
+        '--lambda_ordinal',
+        type=_restricted_float,
+        default=1.0,
+        help='The lambda for ordinal cost')
+    parser.add_argument(
         '--learning_rate',
         type=float,
         default=1e-3,
         help='learning rate for optimizer.')
     parser.add_argument(
-        '--n_epoch', type=int, default=30, help='The number of epoch')
+        '--n_epoch', type=int, default=1000, help='The number of epoch')
+    parser.add_argument(
+        '--iter_early_stop',
+        type=int,
+        default=100,
+        help='the number of iteration for early stop.')
 
     # parser.add_argument(
     #     '--iter_validation',
@@ -317,11 +368,6 @@ def main():
     #     help='lambda for weight decay.')
     # parser.add_argument(
     #     '--dropout_rate', type=float, default=0., help='dropout_rate')
-    # parser.add_argument(
-    #     '--iter_early_stop',
-    #     type=int,
-    #     default=10000,
-    #     help='the number of iteration for early stop.')
     # parser.add_argument(
     #     '--data_seed', type=int, default=1, help='the seed for dataset')
 

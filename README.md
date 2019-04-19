@@ -11,9 +11,10 @@
 
 * This repository only works with Movielens 1M data.
 * This repository force you to use "tensorflow" backend.
+* Implemented single hidden layer version "ONLY".
+* ONLY for i-CFNADE-S
 
-
-## How to run
+## How to run(To be fixed)
 
 * I used `python3`.
 ```
@@ -36,6 +37,12 @@ python run.py
 * default setting.
 ```
 --hidden_dim=250
+--n_epoch=30
+--normalize_1st_layer=False
+--lambda_w=0.02
+--lambda_v=0.02
+--lambda_b=0.02
+--lambda_c=0.02
 ```
 
 * 1st Attempt.
@@ -64,6 +71,12 @@ test set RMSE is 0.824332
 ### Setting 2.
 ```
 --hidden_dim=500
+--n_epoch=30
+--normalize_1st_layer=False
+--lambda_w=0.02
+--lambda_v=0.02
+--lambda_b=0.02
+--lambda_c=0.02
 ```
 * 1st Attempt.
 ```
@@ -71,6 +84,85 @@ training set RMSE for epoch 29 is 0.844765
 validation set RMSE for epoch 29 is 0.873419
 Testing...
 test set RMSE is 0.793768
+```
+* 2nd Attempt.
+```
+training set RMSE for epoch 29 is 0.838292
+validation set RMSE for epoch 29 is 0.870563
+Testing...
+test set RMSE is 0.790359
+```
+
+### Setting 3.
+```
+--hidden_dim=500
+--n_epoch=30
+--normalize_1st_layer=False
+--lambda_w=0.02
+--lambda_v=0.02
+--lambda_b=0.
+--lambda_c=0.
+```
+* 1st Attempt.
+```
+training set RMSE for epoch 29 is 0.849695
+validation set RMSE for epoch 29 is 0.875453
+Testing...
+test set RMSE is 0.796723
+```
+
+### Setting 4.
+```
+--hidden_dim=500
+--n_epoch=30
+--normalize_1st_layer=False
+--lambda_w=0.015
+--lambda_v=0.015
+--lambda_b=0.
+--lambda_c=0.
+```
+* 1st Attempt.
+```
+training set RMSE for epoch 29 is 0.838292
+validation set RMSE for epoch 29 is 0.870563
+Testing...
+test set RMSE is 0.790359
+```
+
+### Setting 5.
+```
+--hidden_dim=500
+--n_epoch=30
+--normalize_1st_layer=False
+--lambda_w=0.
+--lambda_v=0.
+--lambda_b=0.
+--lambda_c=0.
+```
+* 1st Attempt.
+```
+training set RMSE for epoch 29 is 0.637629
+validation set RMSE for epoch 29 is 0.868980
+Testing...
+test set RMSE is 0.564389
+```
+
+### Setting 6.
+```
+--hidden_dim=500
+--n_epoch=30
+--normalize_1st_layer=True
+--lambda_w=0.
+--lambda_v=0.
+--lambda_b=0.
+--lambda_c=0.
+```
+* 1st Attempt.
+```
+training set RMSE for epoch 29 is 0.848877
+validation set RMSE for epoch 29 is 0.864376
+Testing...
+test set RMSE is 0.831562
 ```
 
 ## Repository History

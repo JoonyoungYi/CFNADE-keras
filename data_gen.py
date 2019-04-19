@@ -25,9 +25,6 @@ class DataSet(keras.callbacks.Callback):
                  batch_size,
                  mode,
                  shuffle=True):
-        """
-		"""
-
         self.flist = file_list
         self.num_users = num_users
         self.num_items = num_items
@@ -39,7 +36,6 @@ class DataSet(keras.callbacks.Callback):
         """
 		Computes and returns the number of samples in the corpus.
 		"""
-
         line_count = 0
         for dfile in self.flist:
             with open(dfile) as f:
@@ -48,12 +44,9 @@ class DataSet(keras.callbacks.Callback):
             line_count += (i + 1)
 
         self.size = line_count
-
         return self.size
 
     def generate(self, max_iters=-1):
-        """
-		"""
         iter_cnt = 0
         while True:
             for dfile in self.flist:
@@ -124,13 +117,19 @@ class DataSet(keras.callbacks.Callback):
                                     if flag == 0:
                                         self.input_ranking_vectors[
                                             i, user_id, (value - 1)] = 1
-                                    if flag == 1:
+                                    elif flag == 1:
                                         self.input_ranking_vectors[
                                             i, user_id, (value - 1)] = 1
                                     else:
                                         self.output_ranking_vectors[
                                             i, user_id, (value - 1)] = 1
 
+                        # if self.mode == 0:
+                        #     print('!!')
+                        #     print(self.mode)
+                        #     print(np.sum(self.input_mask_vectors))
+                        #     print(np.sum(self.output_mask_vectors))
+                        #     a = raw_input('>>')
                         inputs = {
                             'input_ratings': self.input_ranking_vectors,
                             'output_ratings': self.output_ranking_vectors,

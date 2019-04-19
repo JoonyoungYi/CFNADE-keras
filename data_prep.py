@@ -89,7 +89,7 @@ if __name__ == "__main__":
     train_df.show()
     print(train_size, 'training examples')
     print(val_size, 'validation examples')
-    print(test_size, 'testing example')
+    print(test_size, 'testing examples')
 
     train_examples = train_df.select(
         "movieId", F.struct(["userId", "value",
