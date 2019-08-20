@@ -78,7 +78,7 @@ def _get_cost_func(args):
         hyb_costs = lambda_regular * K.sum(
             reg_costs, axis=1) + lambda_ordinal * K.sum(
                 ord_costs, axis=1)
-        # hyb_costs = hyb_costs * D / (D - d + 1e-6)
+        hyb_costs = hyb_costs * D / (D - d + 1e-6)
         # O: 1, X;2
 
         # print(hyb_costs)
